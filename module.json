@@ -1,0 +1,15 @@
+{
+  "id": "llm-helper-foundryvtt",
+  "title": "LLM Helper for FoundryVTT Module",
+  "description": "Add's ability to use locally hosted LLM models with in foundry VTT",
+  "authors": [
+    {
+      "name": "Gizmo3030"
+    }
+  ],
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12"
+  }
+}
