@@ -1,32 +1,69 @@
-console.log("Hello World! This code runs immediately when the file is loaded.");
+Hooks.once('init', async function() {
+    console.log('My Custom Module | Initializing module');
 
-Hooks.on("init", function() {
-    console.log("This code runs once the Foundry VTT software begins its initialization workflow.");
+    // Register module settings
+    game.settings.register('llm-helper-foundryvtt', 'enableFeature', {
+        name: 'Enable LLM Integration',
+        hint: 'Enables the LLM integration features',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
 });
 
-Hooks.on("ready", function() {
-    console.log("This code runs once core initialization is ready and game data is available.");
+Hooks.on('getSceneControlButtons', (controls) => {
+    let llmTool = {
+        name: "llm",
+        title: "LLM Interface",
+        icon: "fas fa-brain",
+        visible: true,
+        tools: [
+            {
+                name: "llm-chat",
+                title: "Open LLM Chat",
+                icon: "fas fa-comments",
+                button: true,
+                onClick: () => openLLMInterface()
+            }
+        ],
+        layer: "controls"
+    };
+
+    // Add to the end of the controls array
+    controls.push(llmTool);
 });
 
-// Define Hooks to Montior
-const watchedHooks = ['ActorSheet']
-// Loop through hooks and attach header button and listener
-watchedHooks.forEach(hook => {
-    Hooks.on(`get${hook}HeaderButtons`, attachHeaderButton);
-    Hooks.on(`render${hook}`, updateHeaderButton);
-});
-
-function attachHeaderButton(app, buttons) {
-    if (!game.user.isGM) return;
-
-    buttons.unshift({
-        class: "ai-tools-button",
-        get icon() {
-            // Get GM Notes
-            return `fa-solid fa-robot`;
+function openLLMInterface() {
+    // Create a dialog for the LLM interface
+    let d = new Dialog({
+        title: "LLM Interface",
+        content: `
+            <div class="llm-interface">
+                <div class="llm-chat-messages"></div>
+                <div class="llm-input-area">
+                    <textarea id="llm-input" placeholder="Type your message..."></textarea>
+                </div>
+            </div>
+        `,
+        buttons: {
+            submit: {
+                icon: '<i class="fas fa-paper-plane"></i>',
+                label: "Send",
+                callback: (html) => {
+                    let message = html.find('#llm-input').val();
+                    // Handle the message here
+                    console.log("Message to send:", message);
+                }
+            }
         },
-        onclick: (ev) => {
-            console.log("AI-Tools Button Clicked");
+        default: "submit",
+        render: (html) => {
+            // Any post-render operations
+        },
+        close: () => {
+            // Cleanup when dialog is closed
         }
-    })
+    });
+    d.render(true);
 }

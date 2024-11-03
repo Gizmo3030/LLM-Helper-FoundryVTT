@@ -1,0 +1,14 @@
+{
+  "LLM-HELPER-FOUNDRYVTT": {
+    "Settings": {
+      "enableFeature": {
+        "Name": "Enable LLM Integration",
+        "Hint": "Enables the LLM integration features"
+      }
+    },
+    "Dialog": {
+      "Title": "LLM Interface",
+      "Submit": "Send"
+    }
+  }
+}
