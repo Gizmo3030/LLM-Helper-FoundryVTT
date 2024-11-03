@@ -11,5 +11,8 @@
   "compatibility": {
     "minimum": "11",
     "verified": "12"
-  }
+  },
+  "scripts": [
+    "scripts/helloworld.js"
+  ]
 }
