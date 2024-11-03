@@ -1,9 +1,14 @@
-llm-interface {
+.llm-interface {
     display: flex;
     flex-direction: column;
-    height: 400px;
-    width: 300px;
+    height: 100%;
     padding: 10px;
+}
+
+.llm-chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .llm-chat-messages {
@@ -17,12 +22,73 @@ llm-interface {
 
 .llm-input-area {
     height: 100px;
+    display: flex;
+    gap: 10px;
 }
 
 #llm-input {
-    width: 100%;
-    height: 100%;
+    flex: 1;
     resize: none;
     border: 1px solid #ccc;
-    padding: 5px;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+#llm-send {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 20px;
+    background: #2a2a2a;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#llm-send:hover {
+    background: #404040;
+}
+
+.llm-message {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.message-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.message-content {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.user-message {
+    background: rgba(65, 105, 225, 0.1);
+}
+
+.llm-response {
+    background: rgba(47, 79, 79, 0.1);
+}
+
+.system-message {
+    background: rgba(128, 128, 128, 0.1);
+    font-style: italic;
+}
+
+.loading {
+    opacity: 0.7;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
