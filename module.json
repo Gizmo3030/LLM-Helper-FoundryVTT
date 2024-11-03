@@ -16,6 +16,7 @@
   ],
   "url": "https://github.com/Gizmo3030/LLM-Helper-FoundryVTT",
   "scripts": [
-    "scripts/helloworld.js"
+    "scripts/helloworld.js",
+    "scripts/llm-helper.js"
   ]
 }
