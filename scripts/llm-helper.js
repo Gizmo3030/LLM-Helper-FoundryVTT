@@ -1,5 +1,5 @@
 Hooks.once('init', async function() {
-    console.log('My Custom Module | Initializing module');
+    console.log('LLM Helper | Initializing module');
 
     // Register module settings
     game.settings.register('llm-helper-foundryvtt', 'enableFeature', {
@@ -16,7 +16,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
     let llmTool = {
         name: "llm",
         title: "LLM Interface",
-        icon: "fas fa-brain",
+        icon: "fas fa-mind-share",
         visible: true,
         tools: [
             {
