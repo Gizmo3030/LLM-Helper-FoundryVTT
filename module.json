@@ -15,7 +15,7 @@
     }
   ],
   "url": "https://github.com/Gizmo3030/LLM-Helper-FoundryVTT",
-  "manifest": "https://github.com/Gizmo3030/LLM-Helper-FoundryVTT/blob/main/module.json",
+  "manifest": "https://raw.githubusercontent.com/Gizmo3030/LLM-Helper-FoundryVTT/refs/heads/main/module.json",
   "scripts": [
     "scripts/llm-helper.js"
   ],
