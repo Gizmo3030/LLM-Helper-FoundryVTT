@@ -135,10 +135,15 @@ function opeLLMSettings(){
         buttons: {},
         render: (html) => {
             const saveButton = html.find('#llm-settings-save');
+            const connectButton = html.find('#llm-connect-button');
 
             saveButton.click(async () => {
                 await console.log("save llm settings");
             });
+
+            connectButton.click(async () => {
+                await console.log("connecting llm settings");
+            })
         },
         close: () => {
             // Cleanup when dialog is closed
