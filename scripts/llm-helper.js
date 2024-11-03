@@ -1,7 +1,7 @@
 Hooks.once('init', async function() {
-    console.log('My Custom Module | Initializing module');
+    console.log('LLM Helper | Initializing module');
 
-    game.settings.register('my-custom-module', 'enableFeature', {
+    game.settings.register('llm-helper-module', 'enableFeature', {
         name: 'Enable LLM Integration',
         hint: 'Enables the LLM integration features',
         scope: 'world',
@@ -24,6 +24,13 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 icon: "fas fa-comments",
                 button: true,
                 onClick: () => openLLMInterface()
+            },
+            {
+                name: "llm-settings",
+                title: "Open LLM Settings",
+                icon: "fas fa-gear",
+                button: true,
+                onClick: () => opeLLMSettings()
             }
         ],
         layer: "controls"
@@ -82,8 +89,72 @@ async function handleLLMResponse(userMessage, chatWindow) {
     }
 }
 
+function opeLLMSettings(){
+    let dialog = new Dialog({
+        title: "LLM Settings",
+        content: `
+            <div class="llm-settings"> 
+                <div class="llm-settings-container">
+                    <div class="llm-settings-fields">
+                        <div class="llm-chat-form-group-dropdown-fields">
+                            <label for="api-list">Choose what to connect to:</label>
+                            <select name="api-list" id="api-list">
+                                <option value="ollama">Ollama</option>
+                                <option value="oobabooga">Oobabooga</option>
+                                <option value="chatGPT">ChatGPT</option>
+                                <option value="claude">Claude</option>
+                                <option value="gemini">Gemini</option>
+                            </select>
+                        </div>
+                        <div class="llm-chat-form-group-text-fields">
+                            <label for="llm-settings-address">Base Url:</label>
+                            <input id="llm-settings-address" class='llm-settings-address' type="text">
+                        </div>
+                        <div class="llm-chat-form-group-text-fields">
+                            <label for="llm-settings-api-key">API Key:</label>
+                            <input id="llm-settings-api-key" class='llm-settings-api-key' type="password">
+                        </div>
+                        <button id="llm-connect-button" class="llm-connect-button">
+                                <i class="fad fa-plug"></i>
+                                Connect
+                        </button>
+                        <div class="llm-chat-form-group-dropdown-fields">
+                            <label for="model-list">Model:</label>
+                            <select name="model-list" id="model-list">
+                                <option value="llama3.2">llama3.2</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button id="llm-settings-save" type="button">
+                    <i class="fal fa-save"></i>
+                    Save
+                </button>
+            </div>
+        `,
+        buttons: {},
+        render: (html) => {
+            const saveButton = html.find('#llm-settings-save');
+
+            saveButton.click(async () => {
+                await console.log("save llm settings");
+            });
+        },
+        close: () => {
+            // Cleanup when dialog is closed
+        }
+    },
+    {
+        width: 400,
+        height: 500,
+        resizable: true
+    });
+
+    dialog.render(true);
+}
+
 function openLLMInterface() {
-    let d = new Dialog({
+    let dialog = new Dialog({
         title: "LLM Interface",
         content: `
             <div class="llm-interface">
@@ -139,5 +210,5 @@ function openLLMInterface() {
         resizable: true
     });
 
-    d.render(true);
+    dialog.render(true);
 }

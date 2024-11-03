@@ -92,3 +92,19 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+.llm-chat-form-group-text-fields{
+    display:flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+}
+
+.llm-settings-container{
+    padding: 2px;
+}
+
+.llm-chat-form-group-dropdown-fields{
+    padding: 10px;
+}
