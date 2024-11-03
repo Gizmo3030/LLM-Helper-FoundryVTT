@@ -19,11 +19,14 @@
   "scripts": [
     "scripts/llm-helper.js"
   ],
-  "styles": ["styles/llm-helper.css"],
+  "styles": [
+    "styles/llm-helper.css"
+  ],
   "languages": [
     {
       "lang": "en",
       "name": "English",
       "path": "lang/en.json"
-    },
+    }
+  ]
 }
