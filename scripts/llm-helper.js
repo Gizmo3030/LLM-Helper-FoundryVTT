@@ -143,7 +143,7 @@ function openLLMSettings() {
                 provider: apiSelect.val(),
                 baseUrl: baseUrlInput.val(),
                 apiKey: apiKeyInput.val(),
-                model: html.find('#model-list').val()
+                model: html.find('#model-list')[0].value
             };
 
             //connectButton.prop('disabled', true);
@@ -171,7 +171,7 @@ function openLLMSettings() {
                 provider: apiSelect.val(),
                 baseUrl: baseUrlInput.val(),
                 apiKey: apiKeyInput.val(),
-                model: html.find('#model-list').val(),
+                model: html.find('#model-list')[0].value,
                 isConnected: currentConfig.isConnected
             };
 
@@ -383,71 +383,42 @@ function openLLMInterface() {
         `,
         buttons: {},
         render: async (html) => {
-            const saveButton = html.find('#llm-settings-save');
-            const connectButton = html.find('#llm-connect-button');
-            const apiSelect = html.find('#api-list');
-            const baseUrlInput = html.find('#llm-settings-address');
-            const apiKeyInput = html.find('#llm-settings-api-key');
+            const chatWindow = html.find('#llm-messages')[0];
+            const input = html.find('#llm-input');
+            const sendButton = html.find('#llm-send');
 
-            // Update model list based on current config
-            if (currentConfig.isConnected) {
-                await updateModelList(html, currentConfig);
+            let currentConfig;
+            try {
+                currentConfig = game.settings.get('llm-helper-module', 'llmConfig');
+            } catch (error) {
+                console.warn('LLM Helper | Settings not found, using defaults');
+                currentConfig = {
+                    provider: 'ollama',
+                    baseUrl: 'http://localhost:11434/api/',
+                    apiKey: '',
+                    model: 'llama3.2',
+                    isConnected: false
+                };
             }
 
-            apiSelect.change(async () => {
-                const provider = apiSelect.val();
-                // Update placeholder/hints based on selected provider
-                switch(provider) {
-                    case 'ollama':
-                        baseUrlInput.attr('placeholder', 'http://localhost:11434');
-                        break;
-                    case 'oobabooga':
-                        baseUrlInput.attr('placeholder', 'http://localhost:5000');
-                        break;
-                    // Add other cases as needed
+            sendButton.click(async () => {
+                const message = input.val().trim();
+                if (message) {
+                    input.val('');
+                    await handleLLMResponse(message, chatWindow);
                 }
             });
 
-            connectButton.click(async () => {
-                const config = {
-                    provider: apiSelect.val(),
-                    baseUrl: baseUrlInput.val(),
-                    apiKey: apiKeyInput.val(),
-                    model: html.find('#model-list').val()
-                };
-
-                //connectButton.prop('disabled', true);
-                connectButton.html('<i class="fas fa-spinner fa-spin"></i> Connecting...');
-
-                try {
-                    await LLMService.testConnection(config);
-                    await updateModelList(html, config);
-
-                    config.isConnected = true;
-                    await game.settings.set('llm-helper-module', 'llmConfig', config);
-
-                    connectButton.html('<i class="fas fa-check"></i> Connected');
-                    ui.notifications.info('Successfully connected to LLM service');
-                } catch (error) {
-                    config.isConnected = false;
-                    //connectButton.prop('disabled', false);
-                    connectButton.html('<i class="fas fa-plug"></i> Connect');
-                    ui.notifications.error('Failed to connect to LLM service');
+            // Handle enter key (but shift+enter for new line)
+            input.keydown(async (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    const message = input.val().trim();
+                    if (message) {
+                        input.val('');
+                        await handleLLMResponse(message, chatWindow);
+                    }
                 }
-            });
-
-            saveButton.click(async () => {
-                const config = {
-                    provider: apiSelect.val(),
-                    baseUrl: baseUrlInput.val(),
-                    apiKey: apiKeyInput.val(),
-                    model: html.find('#model-list').val(),
-                    isConnected: currentConfig.isConnected
-                };
-
-                await game.settings.set('llm-helper-module', 'llmConfig', config);
-                ui.notifications.info('Settings saved successfully');
-                dialog.close();
             });
         },
         close: () => {
