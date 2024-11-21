@@ -26,6 +26,32 @@ Hooks.once('init', function() {
             isConnected: false
         }
     });
+
+    game.settings.register('llm-helper-module', 'npcTemplate', {
+        name: 'NPC Generation Template',
+        hint: 'Template prompt for generating NPCs',
+        scope: 'world',
+        config: true,
+        type: String,
+        default: `Generate a D&D 5e NPC with the following format:
+        {
+            "name": "NPC's name",
+            "race": "NPC's race",
+            "class": "NPC's class or profession",
+            "description": "Brief physical description",
+            "personality": "Key personality traits",
+            "background": "Brief background story",
+            "stats": {
+                "str": number (3-18),
+                "dex": number (3-18),
+                "con": number (3-18),
+                "int": number (3-18),
+                "wis": number (3-18),
+                "cha": number (3-18)
+            }
+        }`
+    });
+
 });
 
 Hooks.on('getSceneControlButtons', (controls) => {
@@ -54,6 +80,193 @@ Hooks.on('getSceneControlButtons', (controls) => {
     };
     controls.push(llmTool);
 });
+
+// Add to your LLM toolbar controls
+Hooks.on('getSceneControlButtons', (controls) => {
+    // Find the llm tool group
+    const llmTools = controls.find(c => c.name === "llm");
+
+    if (llmTools) {
+        // Add the NPC generator tool
+        llmTools.tools.push({
+            name: "generate-npc",
+            title: "Generate NPC",
+            icon: "fas fa-user-plus",
+            button: true,
+            onClick: () => openNPCGenerator()
+        });
+    }
+});
+
+function openNPCGenerator() {
+    const dialogContent = `
+        <div class="llm-npc-generator">
+            <div class="form-group">
+                <label>NPC Prompt:</label>
+                <textarea id="npc-prompt" rows="3" placeholder="Generate a merchant NPC who..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Place on Map:</label>
+                <input type="checkbox" id="place-on-map" checked>
+            </div>
+        </div>
+    `;
+
+    new Dialog({
+        title: "Generate NPC",
+        content: dialogContent,
+        buttons: {
+            generate: {
+                icon: '<i class="fas fa-magic"></i>',
+                label: "Generate",
+                callback: (html) => generateNPC(html)
+            },
+            cancel: {
+                icon: '<i class="fas fa-times"></i>',
+                label: "Cancel"
+            }
+        },
+        render: (html) => {
+            // Any render logic here
+        },
+        default: "generate"
+    }).render(true);
+}
+
+// NPC Generation Function
+async function generateNPC(html) {
+    const prompt = html.find('#npc-prompt').val();
+    const placeOnMap = html.find('#place-on-map').is(':checked');
+    const template = game.settings.get('llm-helper-module', 'npcTemplate');
+
+    try {
+        const config = game.settings.get('llm-helper-module', 'llmConfig');
+        if (!config.isConnected) {
+            throw new Error('LLM is not connected. Please check your settings.');
+        }
+
+        ui.notifications.info("Generating NPC...");
+
+        // Combine user prompt with template
+        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object.`;
+
+        // Get response from LLM
+        const response = await LLMService.sendMessage(fullPrompt, config);
+
+        // Parse the JSON response
+        const npcData = parseNPCResponse(response);
+
+        // Create the actor in Foundry
+        const actor = await createNPCActor(npcData);
+
+        if (placeOnMap && canvas.scene && actor) {
+            await placeNPCToken(actor);
+        }
+
+        ui.notifications.success(`NPC ${npcData.name} created successfully!`);
+
+    } catch (error) {
+        ui.notifications.error(`Failed to generate NPC: ${error.message}`);
+        console.error(error);
+    }
+}
+
+// Helper function to parse LLM response
+function parseNPCResponse(response) {
+    try {
+        // Remove any markdown code blocks if present
+        const jsonStr = response.replace(/```json\n?|```/g, '').trim();
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        throw new Error('Failed to parse NPC data from LLM response');
+    }
+}
+
+// Create NPC Actor in Foundry
+async function createNPCActor(npcData) {
+    const actorData = {
+        name: npcData.name,
+        type: "npc",
+        system: {  // Using system instead of data
+            abilities: {
+                str: { value: npcData.stats.str },
+                dex: { value: npcData.stats.dex },
+                con: { value: npcData.stats.con },
+                int: { value: npcData.stats.int },
+                wis: { value: npcData.stats.wis },
+                cha: { value: npcData.stats.cha }
+            },
+            details: {
+                race: npcData.race,
+                background: npcData.background
+            },
+            biography: {
+                value: `<h2>Description</h2><p>${npcData.description}</p>
+                       <h2>Personality</h2><p>${npcData.personality}</p>
+                       <h2>Background</h2><p>${npcData.background}</p>`
+            }
+        },
+        prototypeToken: {
+            actorLink: true,
+            disposition: CONST.TOKEN_DISPOSITIONS.NEUTRAL,
+            name: npcData.name,
+            displayName: CONST.TOKEN_DISPLAY_MODES.HOVER,
+            displayBars: CONST.TOKEN_DISPLAY_MODES.HOVER,
+            vision: true,
+            width: 1,
+            height: 1,
+            scale: 1
+        }
+    };
+
+    // Create the actor
+    try {
+        return await Actor.create(actorData);
+    } catch (error) {
+        ui.notifications.error(`Failed to create actor: ${error}`);
+        console.error(error);
+        throw error;
+    }
+}
+
+// Place NPC Token on Map
+async function placeNPCToken(actor) {
+    if (!canvas.scene) return;
+
+    // Get the center of the current view
+    const viewPosition = canvas.app.renderer.screen.width / 2;
+    const x = canvas.stage.pivot.x + viewPosition;
+    const y = canvas.stage.pivot.y + (canvas.app.renderer.screen.height / 2);
+
+    // Snap to grid
+    const [snapX, snapY] = canvas.grid.getSnappedPosition(x, y);
+
+    // Create the token data
+    const tokenDocument = new TokenDocument({
+        name: actor.name,
+        x: snapX,
+        y: snapY,
+        actorId: actor.id,
+        actorLink: true,
+        disposition: CONST.TOKEN_DISPOSITIONS.NEUTRAL,
+        displayName: CONST.TOKEN_DISPLAY_MODES.HOVER,
+        displayBars: CONST.TOKEN_DISPLAY_MODES.HOVER,
+        vision: true,
+        dimSight: 0,
+        brightSight: 0,
+        width: 1,
+        height: 1,
+        scale: 1
+    }, {parent: canvas.scene});
+
+    try {
+        await canvas.scene.createEmbeddedDocuments("Token", [tokenDocument.toObject()]);
+        ui.notifications.info(`Token for ${actor.name} placed on the map`);
+    } catch (error) {
+        ui.notifications.error(`Failed to place token: ${error}`);
+        console.error(error);
+    }
+}
 
 function openLLMSettings() {
     // Get current config or use default if not set
