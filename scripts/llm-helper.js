@@ -33,14 +33,12 @@ Hooks.once('init', function() {
         scope: 'world',
         config: true,
         type: String,
-        default: `Generate a D&D 5e NPC with the following format:
+        default: `Generate a detailed D&D 5e NPC with the following format:
         {
             "name": "NPC's name",
             "race": "NPC's race",
             "class": "NPC's class or profession",
-            "description": "Brief physical description",
-            "personality": "Key personality traits",
-            "background": "Brief background story",
+            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text",
             "stats": {
                 "str": number (3-18),
                 "dex": number (3-18),
@@ -51,6 +49,7 @@ Hooks.once('init', function() {
             }
         }`
     });
+
 
 });
 
@@ -147,12 +146,12 @@ async function generateNPC(html) {
 
         ui.notifications.info("Generating NPC...");
 
-        // Combine user prompt with template
-        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object.`;
+        // Combine user prompt with the enhanced template
+        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object. Do not include any additional text or explanations.`;
 
         // Get response from LLM
         const response = await LLMService.sendMessage(fullPrompt, config);
-
+        console.log("LLM Raw Response:", response);
         // Parse the JSON response
         const npcData = parseNPCResponse(response);
 
@@ -163,7 +162,7 @@ async function generateNPC(html) {
             await placeNPCToken(actor);
         }
 
-        ui.notifications.success(`NPC ${npcData.name} created successfully!`);
+        ui.notifications.info(`NPC "${npcData.name}" created successfully!`);
 
     } catch (error) {
         ui.notifications.error(`Failed to generate NPC: ${error.message}`);
@@ -171,14 +170,28 @@ async function generateNPC(html) {
     }
 }
 
+
+
 // Helper function to parse LLM response
 function parseNPCResponse(response) {
     try {
-        // Remove any markdown code blocks if present
-        const jsonStr = response.replace(/```json\n?|```/g, '').trim();
+        // Remove any Markdown code block markers if present
+        let jsonStr = response.replace(/```json|```/g, "").trim();
+
+        // Strip other non-JSON content (assumes JSON starts with `{` and ends with `}`)
+        const jsonStart = jsonStr.indexOf("{");
+        const jsonEnd = jsonStr.lastIndexOf("}");
+        if (jsonStart === -1 || jsonEnd === -1) {
+            throw new Error("No valid JSON object found in the response.");
+        }
+
+        jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+
+        // Parse the cleaned JSON string
         return JSON.parse(jsonStr);
     } catch (error) {
-        throw new Error('Failed to parse NPC data from LLM response');
+        console.error("Error parsing NPC response:", error, response);
+        throw new Error("Failed to parse NPC data from LLM response");
     }
 }
 
@@ -187,7 +200,7 @@ async function createNPCActor(npcData) {
     const actorData = {
         name: npcData.name,
         type: "npc",
-        system: {  // Using system instead of data
+        system: { // Use "system" instead of "data" in modern FoundryVTT versions
             abilities: {
                 str: { value: npcData.stats.str },
                 dex: { value: npcData.stats.dex },
@@ -198,13 +211,10 @@ async function createNPCActor(npcData) {
             },
             details: {
                 race: npcData.race,
-                background: npcData.background
+                biography: {
+                     value: npcData.biography
+                },
             },
-            biography: {
-                value: `<h2>Description</h2><p>${npcData.description}</p>
-                       <h2>Personality</h2><p>${npcData.personality}</p>
-                       <h2>Background</h2><p>${npcData.background}</p>`
-            }
         },
         prototypeToken: {
             actorLink: true,
@@ -221,17 +231,22 @@ async function createNPCActor(npcData) {
 
     // Create the actor
     try {
-        return await Actor.create(actorData);
+        const actor = await Actor.create(actorData);
+        return actor;
     } catch (error) {
-        ui.notifications.error(`Failed to create actor: ${error}`);
+        ui.notifications.error(`Failed to create actor: ${error.message}`);
         console.error(error);
         throw error;
     }
 }
 
+
 // Place NPC Token on Map
 async function placeNPCToken(actor) {
-    if (!canvas.scene) return;
+    if (!canvas.scene) {
+        ui.notifications.error("No active scene found.");
+        return;
+    }
 
     // Get the center of the current view
     const viewPosition = canvas.app.renderer.screen.width / 2;
@@ -239,10 +254,36 @@ async function placeNPCToken(actor) {
     const y = canvas.stage.pivot.y + (canvas.app.renderer.screen.height / 2);
 
     // Snap to grid
-    const [snapX, snapY] = canvas.grid.getSnappedPosition(x, y);
+    const snappedPosition = canvas.grid.getSnappedPosition(x, y);
+
+    // Validate snappedPosition is an object and has x, y properties
+    if (!snappedPosition || typeof snappedPosition !== 'object' || !('x' in snappedPosition && 'y' in snappedPosition)) {
+        ui.notifications.error("Failed to determine snapped position.");
+        console.error("Invalid snappedPosition:", snappedPosition);
+        return;
+    }
+
+    const snapX = snappedPosition.x;
+    const snapY = snappedPosition.y;
+
+    // Define default token image path
+    const defaultTokenImage = "systems/dnd5e/tokens/humanoid/Commoner.webp";
+
+    // Check if the image exists
+    let tokenImage = defaultTokenImage;
+    try {
+        const response = await fetch(defaultTokenImage, { method: "HEAD" });
+        if (!response.ok) {
+            console.warn(`Default token image not found: ${defaultTokenImage}`);
+            tokenImage = null; // Use Foundry default if the image doesn't exist
+        }
+    } catch (error) {
+        console.warn(`Failed to fetch default token image: ${error.message}`);
+        tokenImage = null; // Use Foundry default if the image doesn't exist
+    }
 
     // Create the token data
-    const tokenDocument = new TokenDocument({
+    const tokenData = {
         name: actor.name,
         x: snapX,
         y: snapY,
@@ -256,17 +297,21 @@ async function placeNPCToken(actor) {
         brightSight: 0,
         width: 1,
         height: 1,
-        scale: 1
-    }, {parent: canvas.scene});
+        scale: 1,
+        texture: { src: tokenImage || actor.prototypeToken.texture.src }
+    };
 
     try {
-        await canvas.scene.createEmbeddedDocuments("Token", [tokenDocument.toObject()]);
-        ui.notifications.info(`Token for ${actor.name} placed on the map`);
+        await canvas.scene.createEmbeddedDocuments("Token", [tokenData]);
+        ui.notifications.info(`Token for ${actor.name} placed successfully.`);
     } catch (error) {
-        ui.notifications.error(`Failed to place token: ${error}`);
+        ui.notifications.error(`Failed to place token: ${error.message}`);
         console.error(error);
     }
 }
+
+
+
 
 function openLLMSettings() {
     // Get current config or use default if not set
