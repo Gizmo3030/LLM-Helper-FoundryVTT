@@ -33,12 +33,12 @@ Hooks.once('init', function() {
         scope: 'world',
         config: true,
         type: String,
-        default: `Generate a detailed D&D 5e NPC with the following format:
+        default: `Generate a detailed D&D 5e NPC with the following format. Use the metric system where applicable and follow the Rules D&D 5th:
         {
             "name": "NPC's name",
             "race": "NPC's race",
             "class": "NPC's class or profession",
-            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text",
+            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text. The equipment and character will Align with D&D 5th edition rules and restrictions.",
             "stats": {
                 "str": number (3-18),
                 "dex": number (3-18),
@@ -46,11 +46,33 @@ Hooks.once('init', function() {
                 "int": number (3-18),
                 "wis": number (3-18),
                 "cha": number (3-18)
+            },
+            "equipment": {
+                "weapons": [
+                    {
+                        "name": "weapon name",
+                        "type": "melee or ranged",
+                        "damage": "damage dice (e.g., 1d8)",
+                        "damageType": "damage type (e.g., slashing, piercing)",
+                        "properties": ["list of weapon properties"]
+                    }
+                ],
+                "armor": {
+                    "name": "armor name",
+                    "type": "light, medium, or heavy",
+                    "ac": "base armor class",
+                    "properties": ["list of armor properties"]
+                },
+                "items": [
+                    {
+                        "name": "item name",
+                        "quantity": "number of items",
+                        "description": "brief description of the item"
+                    }
+                ]
             }
         }`
     });
-
-
 });
 
 Hooks.on('getSceneControlButtons', (controls) => {
@@ -147,7 +169,7 @@ async function generateNPC(html) {
         ui.notifications.info("Generating NPC...");
 
         // Combine user prompt with the enhanced template
-        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object. Do not include any additional text or explanations.`;
+        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object. Do not include any additional text or explanations. Please in the value fields only use blocked text and do no use quotes in the value reposes and use the metric system`;
 
         // Get response from LLM
         const response = await LLMService.sendMessage(fullPrompt, config);
@@ -176,31 +198,40 @@ async function generateNPC(html) {
 function parseNPCResponse(response) {
     try {
         // Remove any Markdown code block markers if present
-        let jsonStr = response.replace(/```json|```/g, "").trim();
+        let jsonStr = response.replace(/```json|```/g, '').trim();
 
-        // Strip other non-JSON content (assumes JSON starts with `{` and ends with `}`)
-        const jsonStart = jsonStr.indexOf("{");
-        const jsonEnd = jsonStr.lastIndexOf("}");
+        // Find the JSON object boundaries
+        const jsonStart = jsonStr.indexOf('{');
+        const jsonEnd = jsonStr.lastIndexOf('}');
+
         if (jsonStart === -1 || jsonEnd === -1) {
-            throw new Error("No valid JSON object found in the response.");
+            throw new Error('No valid JSON object found in the response.');
         }
 
+        // Extract just the JSON portion
         jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
 
-        // Parse the cleaned JSON string
-        return JSON.parse(jsonStr);
+        // Parse the JSON string
+        let npcData = JSON.parse(jsonStr);
+
+        // Clean up all string values in the parsed object
+        npcData = cleanStringValues(npcData);
+
+        // Validate required fields
+        validateNPCData(npcData);
+
+        return npcData;
     } catch (error) {
-        console.error("Error parsing NPC response:", error, response);
-        throw new Error("Failed to parse NPC data from LLM response");
+        console.error('Error parsing NPC response:', error, response);
+        throw new Error(`Failed to parse NPC data: ${error.message}`);
     }
 }
-
 // Create NPC Actor in Foundry
 async function createNPCActor(npcData) {
     const actorData = {
         name: npcData.name,
         type: "npc",
-        system: { // Use "system" instead of "data" in modern FoundryVTT versions
+        system: {
             abilities: {
                 str: { value: npcData.stats.str },
                 dex: { value: npcData.stats.dex },
@@ -212,7 +243,7 @@ async function createNPCActor(npcData) {
             details: {
                 race: npcData.race,
                 biography: {
-                     value: npcData.biography
+                    value: npcData.biography
                 },
             },
         },
@@ -229,9 +260,122 @@ async function createNPCActor(npcData) {
         }
     };
 
-    // Create the actor
     try {
+        // Create the actor
         const actor = await Actor.create(actorData);
+        const itemsToCreate = [];
+
+        // Process equipment if present
+        if (npcData.equipment) {
+            // Handle weapons
+            if (npcData.equipment.weapons) {
+                for (const weapon of npcData.equipment.weapons) {
+                    // Search for weapon in compendiums
+                    let weaponData = await findItemInCompendiums(weapon.name, 'weapon');
+
+                    // If not found in compendiums, try fuzzy matching
+                    if (!weaponData) {
+                        weaponData = fuzzyMatch(weapon.name, 'weapon');
+                    }
+
+                    // If still not found, create custom weapon
+                    if (!weaponData) {
+                        weaponData = {
+                            name: weapon.name,
+                            type: "weapon",
+                            system: {
+                                weaponType: weapon.type,
+                                damage: {
+                                    parts: [[weapon.damage, weapon.damageType]]
+                                },
+                                properties: weapon.properties.reduce((obj, prop) => {
+                                    obj[prop.toLowerCase()] = true;
+                                    return obj;
+                                }, {}),
+                                equipped: true // Ensure the weapon is equipped
+                            }
+                        };
+                    } else {
+                        weaponData.system.equipped = true; // Mark weapon as equipped
+                    }
+
+                    itemsToCreate.push(weaponData);
+                }
+            }
+
+            // Handle armor
+            if (npcData.equipment.armor) {
+                // Search for armor in compendiums
+                let armorData = await findItemInCompendiums(npcData.equipment.armor.name, 'equipment');
+
+                // If not found in compendiums, try fuzzy matching
+                if (!armorData) {
+                    armorData = fuzzyMatch(npcData.equipment.armor.name, 'equipment');
+                }
+
+                // If still not found, create custom armor
+                if (!armorData) {
+                    armorData = {
+                        name: npcData.equipment.armor.name,
+                        type: "equipment",
+                        system: {
+                            armor: {
+                                type: npcData.equipment.armor.type,
+                                value: npcData.equipment.armor.ac
+                            },
+                            properties: npcData.equipment.armor.properties.reduce((obj, prop) => {
+                                obj[prop.toLowerCase()] = true;
+                                return obj;
+                            }, {}),
+                            equipped: true // Ensure the armor is equipped
+                        }
+                    };
+                } else {
+                    armorData.system.equipped = true; // Mark armor as equipped
+                }
+
+                itemsToCreate.push(armorData);
+            }
+
+            // Handle other items
+            if (npcData.equipment.items) {
+                for (const item of npcData.equipment.items) {
+                    // Search for item in compendiums
+                    let itemData = await findItemInCompendiums(item.name);
+
+                    // If not found in compendiums, try fuzzy matching
+                    if (!itemData) {
+                        itemData = fuzzyMatch(item.name);
+                    }
+
+                    // If still not found, create custom item
+                    if (!itemData) {
+                        itemData = {
+                            name: item.name,
+                            type: "loot",
+                            system: {
+                                quantity: item.quantity,
+                                description: {
+                                    value: item.description
+                                }
+                            }
+                        };
+                    } else {
+                        // Update quantity if found in compendium
+                        itemData.system.quantity = item.quantity;
+                    }
+
+                    itemsToCreate.push(itemData);
+                }
+            }
+
+            // Create all items for the actor
+            if (itemsToCreate.length > 0) {
+                await actor.createEmbeddedDocuments("Item", itemsToCreate);
+                console.log(`Created ${itemsToCreate.length} items for ${actor.name}`);
+            }
+        }
+
         return actor;
     } catch (error) {
         ui.notifications.error(`Failed to create actor: ${error.message}`);
@@ -239,6 +383,7 @@ async function createNPCActor(npcData) {
         throw error;
     }
 }
+
 
 
 // Place NPC Token on Map
@@ -694,3 +839,148 @@ function openLLMInterface() {
 if (typeof window !== 'undefined') {
     window.openLLMSettings = openLLMSettings;
 }
+
+
+function cleanStringValues(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+
+    Object.keys(obj).forEach(key => {
+        if (typeof obj[key] === 'string') {
+            // Replace multiple spaces, tabs, and newlines with single space
+            obj[key] = obj[key].replace(/\s+/g, ' ').trim();
+        } else if (Array.isArray(obj[key])) {
+            // Clean strings in arrays
+            obj[key] = obj[key].map(item => {
+                if (typeof item === 'string') {
+                    return item.replace(/\s+/g, ' ').trim();
+                }
+                return cleanStringValues(item);
+            });
+        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+            // Recursively clean nested objects
+            obj[key] = cleanStringValues(obj[key]);
+        }
+    });
+    return obj;
+}
+
+function validateNPCData(npcData) {
+    const requiredFields = ['name', 'race', 'class', 'biography', 'stats'];
+    const requiredStats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
+    // Check main fields
+    for (const field of requiredFields) {
+        if (!npcData[field]) {
+            throw new Error(`Missing required field: ${field}`);
+        }
+    }
+
+    // Check stats
+    for (const stat of requiredStats) {
+        if (!npcData.stats[stat] ||
+            typeof npcData.stats[stat] !== 'number' ||
+            npcData.stats[stat] < 3 ||
+            npcData.stats[stat] > 18) {
+            throw new Error(`Invalid or missing stat: ${stat}`);
+        }
+    }
+
+    // Validate equipment if present
+    if (npcData.equipment) {
+        validateEquipment(npcData.equipment);
+    }
+}
+
+function validateEquipment(equipment) {
+    // Validate weapons
+    if (equipment.weapons) {
+        if (!Array.isArray(equipment.weapons)) {
+            throw new Error('Weapons must be an array');
+        }
+
+        equipment.weapons.forEach((weapon, index) => {
+            if (!weapon.name || !weapon.type || !weapon.damage || !weapon.damageType) {
+                throw new Error(`Invalid weapon data at index ${index}`);
+            }
+        });
+    }
+
+    // Validate armor
+    if (equipment.armor) {
+        if (!equipment.armor.name || !equipment.armor.type || !equipment.armor.ac) {
+            throw new Error('Invalid armor data');
+        }
+    }
+
+    // Validate items
+    if (equipment.items) {
+        if (!Array.isArray(equipment.items)) {
+            throw new Error('Items must be an array');
+        }
+
+        equipment.items.forEach((item, index) => {
+            if (!item.name || !item.quantity) {
+                throw new Error(`Invalid item data at index ${index}`);
+            }
+        });
+    }
+}
+
+// Helper function to search all compendiums for an item
+async function findItemInCompendiums(itemName, type = null) {
+    // Get all compendiums the user has access to
+    const compendiums = game.packs.filter(pack =>
+        pack.documentName === 'Item' && pack.visible
+    );
+
+    // Clean and normalize the search name
+    const searchName = itemName.toLowerCase().trim();
+
+    // Search through each compendium
+    for (const pack of compendiums) {
+        try {
+            // Get the index of the current compendium
+            const index = await pack.getIndex({
+                fields: ['name', 'type', 'system']
+            });
+
+            // Find matching items
+            const matches = index.filter(i => {
+                const nameMatch = i.name.toLowerCase() === searchName;
+                return type ? (nameMatch && i.type === type) : nameMatch;
+            });
+
+            // If we found matches, get the full item data
+            if (matches.length > 0) {
+                const item = await pack.getDocument(matches[0]._id);
+                return item.toObject();
+            }
+        } catch (error) {
+            console.warn(`Error searching compendium ${pack.title}:`, error);
+            continue;
+        }
+    }
+
+    // If no match found, return null
+    return null;
+}
+
+function fuzzyMatch(itemName, type = null) {
+    // Get all items from the game's items directory
+    const items = game.items.filter(i => type ? i.type === type : true);
+
+    // Clean and normalize the search name
+    const searchName = itemName.toLowerCase().trim();
+
+    // Try exact match first
+    const exactMatch = items.find(i => i.name.toLowerCase() === searchName);
+    if (exactMatch) return exactMatch.toObject();
+
+    // Try partial matches
+    const partialMatch = items.find(i => i.name.toLowerCase().includes(searchName) ||
+        searchName.includes(i.name.toLowerCase()));
+    if (partialMatch) return partialMatch.toObject();
+
+    return null;
+}
+
