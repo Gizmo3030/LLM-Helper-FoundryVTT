@@ -38,7 +38,7 @@ Hooks.once('init', function() {
             "name": "NPC's name",
             "race": "NPC's race",
             "class": "NPC's class or profession",
-            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text. The equipment and character will Align with D&D 5th edition rules and restrictions.",
+            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text. The equipment and character will Align with D&D 5th edition rules and restrictions. don't format the text using tabs or new lines",
             "stats": {
                 "str": number (3-18),
                 "dex": number (3-18),
@@ -54,14 +54,14 @@ Hooks.once('init', function() {
                         "type": "melee or ranged",
                         "damage": "damage dice (e.g., 1d8)",
                         "damageType": "damage type (e.g., slashing, piercing)",
-                        "properties": ["list of weapon properties"]
-                    }
+                        "properties": ['list of weapon properties']
+                    }waw
                 ],
                 "armor": {
                     "name": "armor name",
                     "type": "light, medium, or heavy",
                     "ac": "base armor class",
-                    "properties": ["list of armor properties"]
+                    "properties": ['list of armor properties']
                 },
                 "items": [
                     {
@@ -169,7 +169,7 @@ async function generateNPC(html) {
         ui.notifications.info("Generating NPC...");
 
         // Combine user prompt with the enhanced template
-        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object. Do not include any additional text or explanations. Please in the value fields only use blocked text and do no use quotes in the value reposes and use the metric system`;
+        const fullPrompt = `${template}\n\nSpecific requirements: ${prompt}\n\nRespond only with the JSON object. Do not include any additional text or explanations. Please in the value fields only use blocked text and do no use double quotes in the value reposes and use the metric system`;
 
         // Get response from LLM
         const response = await LLMService.sendMessage(fullPrompt, config);
@@ -197,35 +197,59 @@ async function generateNPC(html) {
 // Helper function to parse LLM response
 function parseNPCResponse(response) {
     try {
-        // Remove any Markdown code block markers if present
+        // Remove Markdown code block markers (if present)
         let jsonStr = response.replace(/```json|```/g, '').trim();
 
-        // Find the JSON object boundaries
+        // Log raw response for debugging
+        console.log("Raw Response:", response);
+        console.log("Cleaned JSON String (before sanitization):", jsonStr);
+
+        // Sanitize the JSON string by removing bad control characters
+        jsonStr = sanitizeJSON(jsonStr);
+
+        // Validate JSON structure by ensuring it starts and ends correctly
         const jsonStart = jsonStr.indexOf('{');
         const jsonEnd = jsonStr.lastIndexOf('}');
-
         if (jsonStart === -1 || jsonEnd === -1) {
             throw new Error('No valid JSON object found in the response.');
         }
 
-        // Extract just the JSON portion
+        // Extract the JSON substring
         jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
 
-        // Parse the JSON string
+        // Parse the sanitized JSON string
         let npcData = JSON.parse(jsonStr);
 
-        // Clean up all string values in the parsed object
+        // Clean string values (optional)
         npcData = cleanStringValues(npcData);
 
         // Validate required fields
         validateNPCData(npcData);
 
+        console.log("Parsed NPC Data:", npcData);
         return npcData;
     } catch (error) {
-        console.error('Error parsing NPC response:', error, response);
+        console.error('Error parsing NPC response:', error);
+
+        // Log the problematic JSON string
+        console.error("Problematic JSON String:", response);
+
         throw new Error(`Failed to parse NPC data: ${error.message}`);
     }
 }
+
+
+function sanitizeJSON(jsonStr) {
+    // Replace control characters (except valid escape sequences) with a space
+    return jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, (char) => {
+        if (char === '\n' || char === '\r' || char === '\t') return char; // Keep valid control characters
+        console.warn(`Removing invalid character: ${char.charCodeAt(0)}`);
+        return ''; // Strip invalid characters
+    });
+}
+
+
+
 // Create NPC Actor in Foundry
 async function createNPCActor(npcData) {
     const actorData = {
@@ -267,8 +291,8 @@ async function createNPCActor(npcData) {
 
         // Process equipment if present
         if (npcData.equipment) {
-            // Handle weapons
-            if (npcData.equipment.weapons) {
+            // Handle weapons (ensure it's an array before calling reduce)
+            if (Array.isArray(npcData.equipment.weapons)) {
                 for (const weapon of npcData.equipment.weapons) {
                     // Search for weapon in compendiums
                     let weaponData = await findItemInCompendiums(weapon.name, 'weapon');
@@ -288,32 +312,26 @@ async function createNPCActor(npcData) {
                                 damage: {
                                     parts: [[weapon.damage, weapon.damageType]]
                                 },
-                                properties: weapon.properties.reduce((obj, prop) => {
+                                properties: weapon.properties && weapon.properties.reduce((obj, prop) => {
                                     obj[prop.toLowerCase()] = true;
                                     return obj;
-                                }, {}),
-                                equipped: true // Ensure the weapon is equipped
+                                }, {}) || {} // Ensure properties is an empty object if undefined
                             }
                         };
-                    } else {
-                        weaponData.system.equipped = true; // Mark weapon as equipped
                     }
 
                     itemsToCreate.push(weaponData);
                 }
             }
 
-            // Handle armor
-            if (npcData.equipment.armor) {
-                // Search for armor in compendiums
+            // Handle armor (ensure it's an object before accessing properties)
+            if (npcData.equipment.armor && typeof npcData.equipment.armor === 'object') {
                 let armorData = await findItemInCompendiums(npcData.equipment.armor.name, 'equipment');
 
-                // If not found in compendiums, try fuzzy matching
                 if (!armorData) {
                     armorData = fuzzyMatch(npcData.equipment.armor.name, 'equipment');
                 }
 
-                // If still not found, create custom armor
                 if (!armorData) {
                     armorData = {
                         name: npcData.equipment.armor.name,
@@ -323,32 +341,26 @@ async function createNPCActor(npcData) {
                                 type: npcData.equipment.armor.type,
                                 value: npcData.equipment.armor.ac
                             },
-                            properties: npcData.equipment.armor.properties.reduce((obj, prop) => {
+                            properties: npcData.equipment.armor.properties && npcData.equipment.armor.properties.reduce((obj, prop) => {
                                 obj[prop.toLowerCase()] = true;
                                 return obj;
-                            }, {}),
-                            equipped: true // Ensure the armor is equipped
+                            }, {}) || {}
                         }
                     };
-                } else {
-                    armorData.system.equipped = true; // Mark armor as equipped
                 }
 
                 itemsToCreate.push(armorData);
             }
 
-            // Handle other items
-            if (npcData.equipment.items) {
+            // Handle other items (ensure it's an array before calling reduce)
+            if (Array.isArray(npcData.equipment.items)) {
                 for (const item of npcData.equipment.items) {
-                    // Search for item in compendiums
                     let itemData = await findItemInCompendiums(item.name);
 
-                    // If not found in compendiums, try fuzzy matching
                     if (!itemData) {
                         itemData = fuzzyMatch(item.name);
                     }
 
-                    // If still not found, create custom item
                     if (!itemData) {
                         itemData = {
                             name: item.name,
@@ -361,19 +373,18 @@ async function createNPCActor(npcData) {
                             }
                         };
                     } else {
-                        // Update quantity if found in compendium
                         itemData.system.quantity = item.quantity;
                     }
 
                     itemsToCreate.push(itemData);
                 }
             }
+        }
 
-            // Create all items for the actor
-            if (itemsToCreate.length > 0) {
-                await actor.createEmbeddedDocuments("Item", itemsToCreate);
-                console.log(`Created ${itemsToCreate.length} items for ${actor.name}`);
-            }
+        // Create all items for the actor
+        if (itemsToCreate.length > 0) {
+            await actor.createEmbeddedDocuments("Item", itemsToCreate);
+            console.log(`Created ${itemsToCreate.length} items for ${actor.name}`);
         }
 
         return actor;
@@ -383,7 +394,6 @@ async function createNPCActor(npcData) {
         throw error;
     }
 }
-
 
 
 // Place NPC Token on Map
@@ -411,42 +421,29 @@ async function placeNPCToken(actor) {
     const snapX = snappedPosition.x;
     const snapY = snappedPosition.y;
 
-    // Define default token image path
-    const defaultTokenImage = "systems/dnd5e/tokens/humanoid/Commoner.webp";
-
-    // Check if the image exists
-    let tokenImage = defaultTokenImage;
     try {
-        const response = await fetch(defaultTokenImage, { method: "HEAD" });
-        if (!response.ok) {
-            console.warn(`Default token image not found: ${defaultTokenImage}`);
-            tokenImage = null; // Use Foundry default if the image doesn't exist
-        }
-    } catch (error) {
-        console.warn(`Failed to fetch default token image: ${error.message}`);
-        tokenImage = null; // Use Foundry default if the image doesn't exist
-    }
+        // Search for a suitable token, defaulting to a commoner token if none found
+        const tokenImage = await findBestMatchingToken(actor) || "systems/dnd5e/tokens/humanoid/Commoner.webp";
 
-    // Create the token data
-    const tokenData = {
-        name: actor.name,
-        x: snapX,
-        y: snapY,
-        actorId: actor.id,
-        actorLink: true,
-        disposition: CONST.TOKEN_DISPOSITIONS.NEUTRAL,
-        displayName: CONST.TOKEN_DISPLAY_MODES.HOVER,
-        displayBars: CONST.TOKEN_DISPLAY_MODES.HOVER,
-        vision: true,
-        dimSight: 0,
-        brightSight: 0,
-        width: 1,
-        height: 1,
-        scale: 1,
-        texture: { src: tokenImage || actor.prototypeToken.texture.src }
-    };
+        // Create the token data
+        const tokenData = {
+            name: actor.name,
+            x: snapX,
+            y: snapY,
+            actorId: actor.id,
+            actorLink: true,
+            disposition: CONST.TOKEN_DISPOSITIONS.NEUTRAL,
+            displayName: CONST.TOKEN_DISPLAY_MODES.HOVER,
+            displayBars: CONST.TOKEN_DISPLAY_MODES.HOVER,
+            vision: true,
+            dimSight: 0,
+            brightSight: 0,
+            width: 1,
+            height: 1,
+            scale: 1,
+            texture: { src: tokenImage }
+        };
 
-    try {
         await canvas.scene.createEmbeddedDocuments("Token", [tokenData]);
         ui.notifications.info(`Token for ${actor.name} placed successfully.`);
     } catch (error) {
@@ -454,7 +451,6 @@ async function placeNPCToken(actor) {
         console.error(error);
     }
 }
-
 
 
 
@@ -984,3 +980,72 @@ function fuzzyMatch(itemName, type = null) {
     return null;
 }
 
+// Function to find the best matching token image
+async function findBestMatchingToken(actor) {
+    const baseDirectory = "systems/dnd5e/tokens";
+
+    // Classify the NPC based on its characteristics (race, type, etc.)
+    let classification = classifyNPC(actor);
+
+    try {
+        // Use the classification to determine the folder to search
+        const folder = classification || "humanoid"; // Default to humanoid if no classification is found
+
+        // Use the FilePicker API to list files in the determined folder and its subfolders
+        const filePickerResult = await FilePicker.browse("data", `${baseDirectory}/${folder}`, { extensions: [".png", ".jpg", ".webp"] });
+
+        if (!filePickerResult.files || filePickerResult.files.length === 0) {
+            console.warn(`No tokens found in folder: ${folder}`);
+            return null;
+        }
+
+        // Filter files for better matching
+        const actorRace = (actor.system.details.race || "").toLowerCase();
+        const actorClass = (actor.system.details.class || "").toLowerCase();
+
+        // Find the most suitable token file based on the actor's race or class
+        let bestMatch = null;
+        for (const file of filePickerResult.files) {
+            const lowerFile = file.toLowerCase();
+            if (actorRace && lowerFile.includes(actorRace)) {
+                bestMatch = file;
+                break; // Prioritize race matches
+            }
+            if (actorClass && lowerFile.includes(actorClass)) {
+                bestMatch = file; // Use class match if race match isn't found
+            }
+        }
+
+        // Return the best match or null if no matches found
+        return bestMatch || null;
+    } catch (error) {
+        console.error(`Error searching for tokens in ${baseDirectory}/${folder}:`, error);
+        return null;
+    }
+}
+
+// Classify the NPC based on its race, type, or other attributes
+function classifyNPC(actor) {
+    const race = (actor.system.details.race || "").toLowerCase();
+    const type = (actor.system.details.type || "").toLowerCase(); // You can also use the type field to classify
+
+    // Map the NPC to a folder based on classification rules
+    if (race.includes("bear") || race.includes("wolf") || race.includes("dire wolf")) {
+        return "beast";
+    }
+    if (race.includes("dragon")) {
+        return "dragon";
+    }
+    if (race.includes("zombie") || race.includes("skeleton") || race.includes("vampire")) {
+        return "undead";
+    }
+    if (race.includes("elf") || race.includes("fey")) {
+        return "fey";
+    }
+    if (type === "elemental") {
+        return "elemental";
+    }
+
+    // Default classification to humanoid if no specific match is found
+    return "humanoid";
+}
