@@ -35,10 +35,10 @@ Hooks.once('init', function() {
         type: String,
         default: `Generate a detailed D&D 5e NPC with the following format. Use the metric system where applicable and follow the Rules D&D 5th:
         {
-            "name": "NPC's name",
-            "race": "NPC's race",
-            "class": "NPC's class or profession",
-            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text. The equipment and character will Align with D&D 5th edition rules and restrictions. don't format the text using tabs or new lines",
+            "name": "NPC's name and don't wrap in quotes",
+            "race": "NPC's race and don't wrap in quotes",
+            "class": "NPC's class or profession and don't wrap in quotes",
+            "biography": "Physical description including unique features and clothing and demeanor and Detailed background story with motivations goals and recent events in plain text. The equipment and character will Align with D&D 5th edition rules and restrictions.",
             "stats": {
                 "str": number (3-18),
                 "dex": number (3-18),
@@ -1026,10 +1026,10 @@ async function findBestMatchingToken(actor) {
 
 // Classify the NPC based on its race, type, or other attributes
 function classifyNPC(actor) {
-    const race = (actor.system.details.race || "").toLowerCase();
-    const type = (actor.system.details.type || "").toLowerCase(); // You can also use the type field to classify
+    const race = typeof actor.system.details.race === "string" ? actor.system.details.race.toLowerCase() : "";
+    const type = typeof actor.system.details.type === "string" ? actor.system.details.type.toLowerCase() : "";
 
-    // Map the NPC to a folder based on classification rules
+    // Classification logic...
     if (race.includes("bear") || race.includes("wolf") || race.includes("dire wolf")) {
         return "beast";
     }
@@ -1046,6 +1046,6 @@ function classifyNPC(actor) {
         return "elemental";
     }
 
-    // Default classification to humanoid if no specific match is found
-    return "humanoid";
+    return "humanoid"; // Default classification
 }
+
