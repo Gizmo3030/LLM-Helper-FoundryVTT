@@ -727,14 +727,24 @@ async function updateModelList(html, config) {
 
     try {
         const models = await LLMService.getModels(config);
+
+        // Add a blank/default option
+        modelSelect.append('<option value="">Select a model</option>');
+
+        // Populate models
         models.forEach(model => {
-            modelSelect.append(`<option value="${model.name}">${model.name}</option>`);
+            const modelName = typeof model === 'string' ? model : model.name;
+            modelSelect.append(`<option value="${modelName}">${modelName}</option>`);
         });
 
+        // Set the saved model or blank if no model
         if (config.model) {
-            modelSelect.val(config.model.name);
+            modelSelect.val(config.model);
+        } else {
+            modelSelect.val('');
         }
     } catch (error) {
+        modelSelect.append('<option value="">Unable to load models</option>');
         ui.notifications.warn('Failed to fetch models list');
     }
 }
