@@ -1,6 +1,6 @@
 {
   "name": "llm-helper-foundryvtt",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add's ability to use locally hosted LLM models with in foundry VTT",
   "type": "module",
   "scripts": {
