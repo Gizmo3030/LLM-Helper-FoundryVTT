@@ -37,8 +37,13 @@ Hooks.once('init', function() {
 });
 
 Hooks.on('getSceneControlButtons', (controls) => {
-    let llmTool = {
-        name: "llm",
+    // V13 switched scene controls to an object keyed by control name instead of an array; keep backward compat.
+    const controlName = "llm";
+    const openChat = () => new LLMChatApp().render(true);
+    const openSettings = () => new LLMSettingsApp().render(true);
+
+    const legacyControl = {
+        name: controlName,
         title: "LLM Interface",
         icon: "fas fa-brain",
         visible: true,
@@ -48,24 +53,49 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 title: "Open LLM Chat",
                 icon: "fas fa-comments",
                 button: true,
-                onClick: () => {
-                    new LLMChatApp().render(true);
-                }
+                onClick: openChat
             },
             {
                 name: "llm-settings",
                 title: "Open LLM Settings",
                 icon: "fas fa-cog",
                 button: true,
-                onClick: () => {
-                    new LLMSettingsApp().render(true);
-                }
+                onClick: openSettings
             }
         ],
         layer: "controls"
     };
+
+    const modernControl = {
+        name: controlName,
+        order: Object.keys(controls ?? {}).length,
+        title: "LLM Interface",
+        icon: "fas fa-brain",
+        visible: true,
+        activeTool: "llm-chat",
+        tools: {
+            "llm-chat": {
+                name: "llm-chat",
+                order: 0,
+                title: "Open LLM Chat",
+                icon: "fas fa-comments",
+                button: true,
+                onChange: openChat
+            },
+            "llm-settings": {
+                name: "llm-settings",
+                order: 1,
+                title: "Open LLM Settings",
+                icon: "fas fa-cog",
+                button: true,
+                onChange: openSettings
+            }
+        }
+    };
     
-    if (controls) {
-        controls.push(llmTool);
+    if (Array.isArray(controls)) {
+        controls.push(legacyControl);
+    } else if (controls && typeof controls === "object") {
+        controls[controlName] = modernControl;
     }
 });

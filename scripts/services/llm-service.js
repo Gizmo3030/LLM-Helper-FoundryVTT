@@ -66,9 +66,7 @@ export class LLMService {
 
     static async sendOllamaMessage(message, config, context = []) {
         // Prepare request for Ollama
-        // Ollama expects: { model: "...", prompt: "...", stream: false, ... }
-        // We can also inject system prompt and context
-        
+        // Ollama expects: { model, prompt, stream: false, system }
         const payload = {
             model: config.model,
             prompt: message,
@@ -82,7 +80,18 @@ export class LLMService {
             payload.system += `\n\nContext Information:\n${contextText}`;
         }
 
-        const response = await fetch(config.apiEndpoint, {
+        // Normalize endpoint: accept base URL or specific API path
+        let endpoint = config.apiEndpoint || "";
+        const lower = endpoint.toLowerCase();
+        const hasGenerate = lower.endsWith('/api/generate');
+        const hasChat = lower.endsWith('/api/chat');
+        if (!hasGenerate && !hasChat) {
+            if (lower.endsWith('/api')) endpoint += '/generate';
+            else if (lower.endsWith('/')) endpoint += 'api/generate';
+            else endpoint += '/api/generate';
+        }
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -90,8 +99,21 @@ export class LLMService {
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error('Failed to get response from Ollama');
-        const data = await response.json();
-        return data.response;
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        const bodyText = await response.text();
+        const body = isJson && bodyText ? JSON.parse(bodyText) : bodyText;
+
+        if (!response.ok) {
+            const detail = isJson && body?.error ? body.error : bodyText || response.statusText;
+            throw new Error(`Failed to get response from Ollama (HTTP ${response.status}): ${detail}`);
+        }
+
+        if (isJson && body) {
+            return body.response ?? body.message?.content ?? JSON.stringify(body);
+        }
+
+        // Fallback if the server returned plain text
+        return typeof body === 'string' ? body : 'No response text received from Ollama';
     }
 }
