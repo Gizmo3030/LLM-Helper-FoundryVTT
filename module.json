@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "compatibility": {
     "minimum": "12",
-    "verified": "12"
+    "verified": "13"
   },
   "description": "Add's ability to use locally hosted LLM models with in foundry VTT",
   "authors": [
@@ -17,7 +17,7 @@
   "url": "https://github.com/Gizmo3030/LLM-Helper-FoundryVTT",
   "manifest": "https://raw.githubusercontent.com/Gizmo3030/LLM-Helper-FoundryVTT/refs/heads/main/module.json",
   "download": "https://github.com/Gizmo3030/LLM-Helper-FoundryVTT/releases/download/Current/LLM-Helper-FoundryVTT.zip",
-  "scripts": [
+  "esmodules": [
     "scripts/llm-helper.js"
   ],
   "styles": [

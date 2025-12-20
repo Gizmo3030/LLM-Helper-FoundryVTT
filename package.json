@@ -1,0 +1,11 @@
+{
+  "name": "llm-helper-foundryvtt",
+  "version": "1.0.0",
+  "description": "Add's ability to use locally hosted LLM models with in foundry VTT",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gizmo3030",
+  "license": "ISC"
+}

@@ -1,0 +1,23 @@
+
+<div class="llm-chat-container">
+    <div class="llm-chat-messages" id="llm-messages">
+        <div class="llm-message system-message">
+            <span class="message-icon"><i class="fas fa-info-circle"></i></span>
+            <span class="message-content">How can I assist you today?</span>
+        </div>
+        {{#each messages}}
+            <div class="llm-message {{#if this.isUser}}user-message{{else}}llm-response{{/if}}">
+                <span class="message-icon">
+                    {{#if this.isUser}}<i class="fas fa-user"></i>{{else}}<i class="fas fa-brain"></i>{{/if}}
+                </span>
+                <span class="message-content">{{this.text}}</span>
+            </div>
+        {{/each}}
+    </div>
+    <div class="llm-input-area">
+        <textarea id="llm-input" placeholder="Type your message..."></textarea>
+        <button id="llm-send" type="button">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </div>
+</div>
