@@ -176,3 +176,41 @@
 .llm-chat-form-group-dropdown-fields{
     padding: 10px;
 }
+
+.llm-npc-generator {
+    padding: 10px;
+}
+
+.llm-npc-generator .form-group {
+    margin-bottom: 10px;
+}
+
+.llm-npc-generator textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.llm-npc-generator label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+llm-npc-generator {
+    padding: 10px;
+}
+
+.llm-npc-generator .form-group {
+    margin-bottom: 10px;
+}
+
+.llm-npc-generator textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.llm-npc-generator label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
